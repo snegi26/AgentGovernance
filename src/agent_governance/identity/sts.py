@@ -41,7 +41,7 @@ from agent_governance.identity.dpop import DpopError, DpopVerifier
 from agent_governance.identity.idp import IssuerKind, TrustedIssuer
 from agent_governance.identity.registry import AgentContract, AgentRegistry, UnknownAgentError
 from agent_governance.identity.revocation import RevocationList
-from agent_governance.model import Inventory, PrincipalKind
+from agent_governance.model import Inventory, Principal, PrincipalKind
 from agent_governance.policy.tools import ToolCatalog
 
 TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange"  # noqa: S105 - URN, not a secret
@@ -356,25 +356,10 @@ class TokenService:
                 Delegation(chain, parent.delegation.root_kind), envelope, parent
             )
 
-        trusted = self._issuers.get(issuer)
-        if trusted is None:
-            raise TokenExchangeError("invalid_grant", f"untrusted subject token issuer {issuer!r}")
         try:
-            claims = jwt.decode(
-                subject_token,
-                trusted.public_key,
-                algorithms=["ES256"],
-                audience=self.issuer,
-                options={
-                    "require": ["iss", "sub", "aud", "exp"],
-                    "verify_exp": False,
-                    "verify_iat": False,
-                },
-            )
-        except jwt.PyJWTError as exc:
-            raise TokenExchangeError("invalid_grant", f"subject token rejected: {exc}") from exc
-        if int(claims["exp"]) < int(self.clock.now().timestamp()) - _SKEW:
-            raise TokenExchangeError("invalid_grant", "subject token expired")
+            trusted, claims = self._verify_external(subject_token, issuer)
+        except InvalidTokenError as exc:
+            raise TokenExchangeError("invalid_grant", str(exc)) from exc
         subject = str(claims["sub"])
 
         if trusted.kind is IssuerKind.IDP:
@@ -446,6 +431,42 @@ class TokenService:
                 flags=(exc.error,),
                 details={"aud": req.audience, "reason": exc.description},
             )
+
+    def _verify_external(self, token: str, issuer: str) -> tuple[TrustedIssuer, dict[str, Any]]:
+        trusted = self._issuers.get(issuer)
+        if trusted is None:
+            raise InvalidTokenError(f"untrusted subject token issuer {issuer!r}")
+        try:
+            claims = jwt.decode(
+                token,
+                trusted.public_key,
+                algorithms=["ES256"],
+                audience=self.issuer,
+                options={
+                    "require": ["iss", "sub", "aud", "exp"],
+                    "verify_exp": False,
+                    "verify_iat": False,
+                },
+            )
+        except jwt.PyJWTError as exc:
+            raise InvalidTokenError(f"subject token rejected: {exc}") from exc
+        if int(claims["exp"]) < int(self.clock.now().timestamp()) - _SKEW:
+            raise InvalidTokenError("subject token expired")
+        return trusted, claims
+
+    def verify_user_token(self, token: str) -> Principal:
+        """Authenticate a human (approver, auditor, admin) by an IdP-issued token."""
+        try:
+            issuer = str(jwt.decode(token, options={"verify_signature": False})["iss"])
+        except (jwt.PyJWTError, KeyError) as exc:
+            raise InvalidTokenError("malformed user token") from exc
+        trusted, claims = self._verify_external(token, issuer)
+        if trusted.kind is not IssuerKind.IDP:
+            raise InvalidTokenError("user tokens must come from an identity provider")
+        principal = self.inventory.find_principal(str(claims["sub"]))
+        if principal is None or principal.kind is not PrincipalKind.HUMAN or not principal.active:
+            raise InvalidTokenError("subject is not an active human principal")
+        return principal
 
     # -- verification (used by the gateway) -------------------------------------------------
 

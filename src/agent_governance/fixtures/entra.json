@@ -1,0 +1,31 @@
+{
+  "users": [
+    {"id": "u-priya", "userPrincipalName": "priya@acme", "displayName": "Priya Raman", "accountEnabled": true, "manager": {"id": "u-mark"}},
+    {"id": "u-sam", "userPrincipalName": "sam@acme", "displayName": "Sam Okafor", "accountEnabled": true, "manager": {"id": "u-mark"}},
+    {"id": "u-mark", "userPrincipalName": "mark@acme", "displayName": "Mark Lindqvist", "accountEnabled": true},
+    {"id": "u-cora", "userPrincipalName": "cora@acme", "displayName": "Cora Diaz", "accountEnabled": true},
+    {"id": "u-ines", "userPrincipalName": "ines@acme", "displayName": "Ines Moreau", "accountEnabled": true},
+    {"id": "u-raj", "userPrincipalName": "raj@acme", "displayName": "Raj Patel", "accountEnabled": true},
+    {"id": "u-leo", "userPrincipalName": "leo@acme", "displayName": "Leo Brandt", "accountEnabled": false}
+  ],
+  "servicePrincipals": [
+    {"id": "sp-batch", "appId": "7f1c0a2e-0000-4000-8000-000000000007", "displayName": "sap-batch-integration", "owners": [{"id": "u-mark"}]},
+    {"id": "sp-orphan", "appId": "7f1c0a2e-0000-4000-8000-000000000099", "displayName": "legacy-sync", "owners": []}
+  ],
+  "roleDefinitions": [
+    {"id": "rd-ga", "displayName": "Global Administrator", "templateId": "62e90394-69f5-4237-9190-012177145e10", "isPrivileged": true},
+    {"id": "rd-pra", "displayName": "Privileged Role Administrator", "templateId": "e8611ab8-c189-46e8-94e1-60213ab1f814", "isPrivileged": true},
+    {"id": "rd-reader", "displayName": "Directory Readers", "templateId": "88d8e3e3-8f55-4a1e-953a-9b9898b8876b"}
+  ],
+  "roleAssignments": [
+    {"id": "ra-1", "principalId": "u-ines", "roleDefinitionId": "rd-pra"},
+    {"id": "ra-2", "principalId": "u-priya", "roleDefinitionId": "rd-reader"}
+  ],
+  "governance_entitlements": {
+    "user:priya@acme": ["governance.use_assistant", "request_access_self_or_reports", "catalog.search_roles", "sod.simulate", "iag.draft_request", "s4.vendor_create", "s4.invoice_post", "s4.vendor_get"],
+    "user:sam@acme": ["governance.use_assistant", "request_access_self_or_reports", "catalog.search_roles", "sod.simulate", "iag.draft_request"],
+    "user:mark@acme": ["governance.use_assistant", "catalog.search_roles", "review.list_items", "usage.get", "sod.static", "review.draft_decision", "certify_access"],
+    "user:raj@acme": ["governance.use_assistant", "trace.query", "baseline.get", "quarantine_agents"],
+    "user:cora@acme": ["governance.use_assistant", "audit.read_evidence"]
+  }
+}

@@ -85,6 +85,13 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 markers = ["perf: latency gate tests (in-process benchmarks)"]
+filterwarnings = [
+  "error",
+  # Starlette's TestClient still runs on httpx; tracked as a follow-up, not a runtime concern.
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+  # Ad-hoc SQLite handles opened by individual tests; production code closes via close().
+  "ignore:unclosed database:ResourceWarning",
+]
 
 [tool.coverage.run]
 source = ["agent_governance"]

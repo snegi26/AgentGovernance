@@ -106,6 +106,16 @@ class EvidenceStore:
         except sqlite3.Error as exc:
             raise EvidenceUnavailableError(str(exc)) from exc
 
+    def close(self) -> None:
+        with self._lock:
+            self._db.close()
+
+    def __enter__(self) -> EvidenceStore:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
     # -- writes ---------------------------------------------------------------------------
 
     def append(

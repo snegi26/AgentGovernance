@@ -1,0 +1,52 @@
+{
+  "identity_map": {"PRAMAN": "user:priya@acme", "SOKAFOR": "user:sam@acme", "MLINDQVIST": "user:mark@acme", "LBRANDT": "user:leo@acme"},
+  "owners": {"BATCH07": "user:mark@acme"},
+  "USR02": [
+    {"BNAME": "PRAMAN", "USTYP": "A", "UFLAG": 0},
+    {"BNAME": "SOKAFOR", "USTYP": "A", "UFLAG": 0},
+    {"BNAME": "MLINDQVIST", "USTYP": "A", "UFLAG": 0},
+    {"BNAME": "LBRANDT", "USTYP": "A", "UFLAG": 64},
+    {"BNAME": "BATCH07", "USTYP": "B", "UFLAG": 0},
+    {"BNAME": "RFC_ORPHAN", "USTYP": "S", "UFLAG": 0}
+  ],
+  "AGR_DEFINE": [
+    {"AGR_NAME": "Z_AP_CLERK", "OWNER": "user:mark@acme"},
+    {"AGR_NAME": "Z_VENDOR_MAINT", "OWNER": "user:mark@acme"},
+    {"AGR_NAME": "Z_VENDOR_DISPLAY", "OWNER": "user:mark@acme"},
+    {"AGR_NAME": "Z_AP_PAYMENTS", "OWNER": "user:mark@acme"},
+    {"AGR_NAME": "Z_PO_BUYER", "OWNER": "user:mark@acme"},
+    {"AGR_NAME": "Z_BASIS_DEBUG", "OWNER": "user:ines@acme", "CRITICAL": true}
+  ],
+  "AGR_TEXTS": [
+    {"AGR_NAME": "Z_AP_CLERK", "TEXT": "Accounts payable clerk: enter vendor invoices"},
+    {"AGR_NAME": "Z_VENDOR_MAINT", "TEXT": "Vendor master maintenance"},
+    {"AGR_NAME": "Z_VENDOR_DISPLAY", "TEXT": "Vendor master display"},
+    {"AGR_NAME": "Z_AP_PAYMENTS", "TEXT": "Accounts payable: payment runs"},
+    {"AGR_NAME": "Z_PO_BUYER", "TEXT": "Purchasing: create purchase orders"},
+    {"AGR_NAME": "Z_BASIS_DEBUG", "TEXT": "Basis emergency debugging"}
+  ],
+  "AGR_1251": [
+    {"AGR_NAME": "Z_AP_CLERK", "OBJECT": "S_TCODE", "FIELD": "TCD", "LOW": "FB60", "HIGH": ""},
+    {"AGR_NAME": "Z_AP_CLERK", "OBJECT": "F_BKPF_BUK", "FIELD": "ACTVT", "LOW": "01", "HIGH": ""},
+    {"AGR_NAME": "Z_VENDOR_MAINT", "OBJECT": "S_TCODE", "FIELD": "TCD", "LOW": "XK01", "HIGH": ""},
+    {"AGR_NAME": "Z_VENDOR_MAINT", "OBJECT": "S_TCODE", "FIELD": "TCD", "LOW": "XK02", "HIGH": ""},
+    {"AGR_NAME": "Z_VENDOR_MAINT", "OBJECT": "F_LFA1_APP", "FIELD": "ACTVT", "LOW": "*", "HIGH": ""},
+    {"AGR_NAME": "Z_VENDOR_DISPLAY", "OBJECT": "S_TCODE", "FIELD": "TCD", "LOW": "XK03", "HIGH": ""},
+    {"AGR_NAME": "Z_VENDOR_DISPLAY", "OBJECT": "F_LFA1_APP", "FIELD": "ACTVT", "LOW": "03", "HIGH": ""},
+    {"AGR_NAME": "Z_AP_PAYMENTS", "OBJECT": "S_TCODE", "FIELD": "TCD", "LOW": "F110", "HIGH": ""},
+    {"AGR_NAME": "Z_AP_PAYMENTS", "OBJECT": "F_REGU_BUK", "FIELD": "FBTCH", "LOW": "11", "HIGH": ""},
+    {"AGR_NAME": "Z_PO_BUYER", "OBJECT": "S_TCODE", "FIELD": "TCD", "LOW": "ME21N", "HIGH": ""},
+    {"AGR_NAME": "Z_PO_BUYER", "OBJECT": "M_BEST_BSA", "FIELD": "ACTVT", "LOW": "01", "HIGH": ""},
+    {"AGR_NAME": "Z_BASIS_DEBUG", "OBJECT": "S_TCODE", "FIELD": "TCD", "LOW": "SE38", "HIGH": ""},
+    {"AGR_NAME": "Z_BASIS_DEBUG", "OBJECT": "S_DEVELOP", "FIELD": "OBJTYPE", "LOW": "DEBUG", "HIGH": ""},
+    {"AGR_NAME": "Z_BASIS_DEBUG", "OBJECT": "S_DEVELOP", "FIELD": "ACTVT", "LOW": "01", "HIGH": "03"}
+  ],
+  "AGR_USERS": [
+    {"AGR_NAME": "Z_AP_CLERK", "UNAME": "PRAMAN", "FROM_DAT": "20250101", "TO_DAT": "99991231"},
+    {"AGR_NAME": "Z_AP_CLERK", "UNAME": "SOKAFOR", "FROM_DAT": "20250101", "TO_DAT": "99991231"},
+    {"AGR_NAME": "Z_VENDOR_MAINT", "UNAME": "SOKAFOR", "FROM_DAT": "20250101", "TO_DAT": "99991231"},
+    {"AGR_NAME": "Z_VENDOR_DISPLAY", "UNAME": "MLINDQVIST", "FROM_DAT": "20250101", "TO_DAT": "99991231"},
+    {"AGR_NAME": "Z_AP_PAYMENTS", "UNAME": "BATCH07", "FROM_DAT": "20250101", "TO_DAT": "99991231"},
+    {"AGR_NAME": "Z_VENDOR_MAINT", "UNAME": "LBRANDT", "FROM_DAT": "20240101", "TO_DAT": "20251231"}
+  ]
+}

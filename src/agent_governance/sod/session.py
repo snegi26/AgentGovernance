@@ -75,6 +75,8 @@ class SessionStep:
 class SessionStore(Protocol):
     def append(self, step: SessionStep) -> None: ...
 
+    def close(self) -> None: ...
+
     def in_scope(
         self,
         *,
@@ -113,6 +115,10 @@ class SqliteSessionStore:
                 ON session_step(delegator, system, action, ts);
             """
         )
+
+    def close(self) -> None:
+        with self._lock:
+            self._db.close()
 
     def append(self, step: SessionStep) -> None:
         if step.ts is None:

@@ -134,3 +134,52 @@ def test_unwritable_store_raises_unavailable(tmp_path: Path) -> None:
 def test_get_unknown_record(clock: FixedClock) -> None:
     with pytest.raises(KeyError):
         EvidenceStore(clock=clock).get("ev_nope")
+
+
+def test_failed_append_does_not_poison_the_connection(clock: FixedClock) -> None:
+    store = EvidenceStore(clock=clock)
+    with pytest.raises(TypeError):
+        store.append("acme", "approval", actor=ACTOR, verdict="x", not_a_field=1)
+    with pytest.raises(TypeError):
+        store.append("acme", "approval", actor=ACTOR, verdict="x", details={"n": float("nan")})
+    store.append("acme", "approval", actor=ACTOR, verdict="ok")
+    assert store.verify("acme", "2026-10-27").ok
+
+
+def test_floats_are_accepted_in_details(clock: FixedClock) -> None:
+    store = EvidenceStore(clock=clock)
+    record = store.append(
+        "acme", "approval", actor=ACTOR, verdict="ok", details={"amount": 48250.5}
+    )
+    assert store.get(record.record_id).details == {"amount": 48250.5}
+    assert store.verify("acme", "2026-10-27").ok
+
+
+def test_anchor_token_is_checked_not_just_the_root_column(
+    tmp_path: Path, clock: FixedClock
+) -> None:
+    path = str(tmp_path / "ev.db")
+    store = EvidenceStore(path, clock)
+    tsa = LocalTimestampAuthority(generate_ed25519_key(), clock=clock)
+    _fill(store, 2)
+    store.anchor_day("acme", "2026-10-27", tsa)
+    assert store.verify("acme", "2026-10-27", tsa.public_key).ok
+    # rewrite the day consistently AND repoint the anchor's root column; the old token stays
+    db = sqlite3.connect(path)
+    db.execute("DROP TRIGGER evidence_no_delete")
+    db.execute("DELETE FROM evidence")
+    db.commit()
+    forged = EvidenceStore(path, clock)  # reopening re-creates the append-only triggers
+    _fill(forged, 2)
+    new_root = forged.records("acme")[-1].hash
+    db.execute("DROP TRIGGER anchor_no_update")
+    db.execute("UPDATE anchor SET root=?", (new_root,))
+    db.commit()
+    result = EvidenceStore(path, clock).verify("acme", "2026-10-27")
+    assert not result.ok
+    assert result.error == "anchor token does not verify"
+    other_tsa = generate_ed25519_key().public_key()
+    assert (
+        EvidenceStore(path, clock).verify("acme", "2026-10-27", other_tsa).error
+        == "anchor token does not verify"
+    )

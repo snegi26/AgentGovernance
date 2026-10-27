@@ -25,7 +25,12 @@ from datetime import date
 from enum import StrEnum
 from typing import Any
 
-from agent_governance.approval.service import ApprovalCheck, ApprovalService
+from agent_governance.approval.service import (
+    ApprovalCheck,
+    ApprovalService,
+    ApprovalTask,
+    TaskStatus,
+)
 from agent_governance.approval.tiers import (
     BULK_REVOKE_THRESHOLD,
     LOW_RISK_MAX_DAYS,
@@ -60,6 +65,8 @@ from agent_governance.policy.tools import ActionClass, ToolCatalog, ToolSpec
 from agent_governance.sod.engine import SodEngine
 from agent_governance.sod.ruleset import RiskLevel
 from agent_governance.sod.session import SessionChecker, SessionDecision, SessionStep
+
+SELF_OR_REPORTS = "request_access_self_or_reports"
 
 #: Argument names that assert a compliance verdict and must cite an engine ``result_ref``.
 VERDICT_FIELDS = ("compliant", "sod_clean", "sod_result", "verdict", "risk_score")
@@ -199,6 +206,14 @@ class Gateway:
     # -- entry point ---------------------------------------------------------------------------
 
     def handle(self, call: ToolCall) -> GatewayResult:
+        try:
+            return self._handle(call)
+        except Exception as exc:  # fail closed, and still leave a record
+            return self._refuse(
+                call, self.tools.find(call.tool_id), None, f"internal error: {type(exc).__name__}"
+            )
+
+    def _handle(self, call: ToolCall) -> GatewayResult:
         tool = self.tools.find(call.tool_id)
         if tool is None:
             return self._refuse(call, None, None, "unknown tool")
@@ -309,7 +324,7 @@ class Gateway:
             return self._dependency_failure(call, tool, base, exc)
 
         verdict = Verdict(decision.verdict.value)
-        task_id = None
+        task: ApprovalTask | None = None
         if verdict is Verdict.REQUIRE_APPROVAL:
             task = self.approvals.open_task(
                 call_hash=call_hash,
@@ -325,8 +340,11 @@ class Gateway:
                     "flags": flags,
                 },
             )
-            task_id = task.task_id
+        task_id = task.task_id if task is not None else None
         reason = self._reason(verdict, decision.determining_policies, sod, check)
+        if task is not None and task.status is TaskStatus.REJECTED:
+            verdict = Verdict.DENY
+            reason = "an approver rejected this exact payload"
         try:
             record = self.evidence.append(
                 self.tenant,
@@ -371,6 +389,8 @@ class Gateway:
         )
         if verdict is not Verdict.ALLOW:
             return result
+        if check.approval_ids:
+            self.approvals.consume(call_hash, check.approval_ids)
         return self._forward(call, tool, claims, record=record, sod=sod, result=result)
 
     def _forward(
@@ -437,7 +457,7 @@ class Gateway:
                     "risks": [v.risk_id for v in session.violations],
                 }
             if tool.request_check:
-                self._request_check(call.arguments, claims, outcome, results)
+                self._request_check(tool, call.arguments, claims, outcome, results)
         except _Denied:
             raise
         except (UnknownEntityError, KeyError, ValueError, TypeError) as exc:
@@ -464,15 +484,23 @@ class Gateway:
 
     def _request_check(
         self,
+        tool: ToolSpec,
         args: Mapping[str, Any],
         claims: AccessClaims,
         outcome: _SodOutcome,
         results: list[dict[str, Any]],
     ) -> None:
-        target = str(args.get("target") or claims.delegation.root)
+        delegator = claims.delegation.root
+        target = str(args.get("target") or delegator)
         roles = [str(r) for r in args.get("roles", [])]
         if not roles:
             raise _Denied("request names no roles")
+        if tool.entitlement == SELF_OR_REPORTS and target != delegator:
+            subject = self.inventory.find_principal(target)
+            if subject is None or subject.manager_id != delegator:
+                raise _Denied(
+                    f"{delegator} may request access only for themselves or direct reports"
+                )
         simulation = self.sod.simulate(target, add_roles=roles)
         results.append(simulation.to_dict())
         added = simulation.added

@@ -77,6 +77,12 @@ def build_ids(clock: FixedClock, inventory: Inventory) -> Ids:
     registry = AgentRegistry(inventory)
     keys: dict[str, ec.EllipticCurvePrivateKey] = {}
 
+    handoffs = {
+        "orchestrator": frozenset({"access-request", "certification"}),
+        "certification": frozenset({"access-request"}),
+        "access-request": frozenset({"ap-clerk"}),
+    }
+
     def register(name: str, tools: set[str], autonomy: Autonomy) -> None:
         keys[name] = generate_ec_key()
         registry.register(
@@ -88,6 +94,7 @@ def build_ids(clock: FixedClock, inventory: Inventory) -> Ids:
                 allowed_tools=frozenset(tools),
                 max_autonomy=autonomy,
                 public_jwk=ec_public_jwk(keys[name]),
+                may_delegate_to=handoffs.get(name, frozenset()),
             )
         )
 

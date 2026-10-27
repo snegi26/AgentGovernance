@@ -11,7 +11,7 @@ hold every role the tier requires, and that none of them is the delegator.
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -37,6 +37,7 @@ class TaskStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    EXECUTED = "executed"
 
 
 @dataclass
@@ -79,16 +80,24 @@ class ApproverDirectory:
     """Who may approve in which role. Line managers come from the inventory's ``manager_id``."""
 
     def __init__(
-        self, inventory: Inventory, grants: Mapping[ApproverRole, Iterable[str]] | None = None
+        self,
+        inventory: Inventory,
+        grants: Mapping[ApproverRole, Iterable[str]] | None = None,
+        trigger_owner: Callable[[str], str | None] | None = None,
     ) -> None:
         self._inventory = inventory
         self._grants: dict[ApproverRole, set[str]] = {r: set(p) for r, p in (grants or {}).items()}
+        self._trigger_owner = trigger_owner
 
     def grant(self, role: ApproverRole, principal_id: str) -> None:
         self._grants.setdefault(role, set()).add(principal_id)
 
     def holds(self, principal_id: str, role: ApproverRole, *, delegator: str) -> bool:
         if role == ApproverRole.LINE_MANAGER:
+            if delegator.startswith("trigger:"):
+                # Triggered work answers to the human who owns the trigger.
+                owner = self._trigger_owner(delegator) if self._trigger_owner else None
+                return owner is not None and owner == principal_id
             subject = self._inventory.find_principal(delegator)
             return subject is not None and subject.manager_id == principal_id
         return principal_id in self._grants.get(role, set())
@@ -123,6 +132,7 @@ class ApprovalService:
         self.task_ttl = task_ttl
         self._tasks: dict[str, ApprovalTask] = {}
         self._by_hash: dict[str, str] = {}
+        self._spent: set[str] = set()
         self._lock = threading.RLock()
 
     # -- tasks ------------------------------------------------------------------------------
@@ -136,7 +146,11 @@ class ApprovalService:
         delegator: str,
         summary: Mapping[str, Any],
     ) -> ApprovalTask:
-        """Open (or return the open) task for this payload. Idempotent per ``call_hash``."""
+        """Open (or return the open) task for this payload. Idempotent per ``call_hash``.
+
+        A rejection is final for that exact payload: the rejected task is returned rather than
+        replaced, so resubmitting cannot wipe it out. A changed payload has a new hash.
+        """
         if tier is ApprovalTier.NONE:
             raise ApprovalError("tier NONE needs no approval task")
         now = self.clock.now()
@@ -144,6 +158,8 @@ class ApprovalService:
             existing = self._by_hash.get(call_hash)
             if existing is not None:
                 task = self._tasks[existing]
+                if task.status is TaskStatus.REJECTED:
+                    return task
                 if (
                     task.status is TaskStatus.PENDING
                     and task.expires_at > now
@@ -245,11 +261,24 @@ class ApprovalService:
         )
         return token
 
+    def can_decide(self, task: ApprovalTask, principal_id: str) -> bool:
+        """Whether ``principal_id`` holds one of the roles this task requires (and is not its
+        delegator)."""
+        return principal_id != task.delegator and any(
+            self.directory.holds(principal_id, r, delegator=task.delegator)
+            for r in task.tier.required_roles
+        )
+
+    def can_view(self, task: ApprovalTask, principal_id: str) -> bool:
+        return principal_id == task.delegator or self.can_decide(task, principal_id)
+
     def reject(self, task_id: str, approver: str, reason: str) -> ApprovalTask:
         with self._lock:
             task = self.task(task_id)
             if task.status is not TaskStatus.PENDING:
                 raise ApprovalError(f"task {task_id} is not open")
+            if not self.can_decide(task, approver):
+                raise ApprovalError(f"{approver} may not decide task {task_id}")
             task.status = TaskStatus.REJECTED
         self.evidence.append(
             self.tenant,
@@ -261,6 +290,14 @@ class ApprovalService:
             details={"task_id": task.task_id, "reason": reason},
         )
         return task
+
+    def consume(self, call_hash: str, approval_ids: Iterable[str]) -> None:
+        """Spend approvals once the call they authorize is allowed; they cannot be replayed."""
+        with self._lock:
+            self._spent.update(approval_ids)
+            task = self.task_for(call_hash)
+            if task is not None and task.status is TaskStatus.APPROVED:
+                task.status = TaskStatus.EXECUTED
 
     # -- verification (used by the gateway) ---------------------------------------------------
 
@@ -287,6 +324,9 @@ class ApprovalService:
                 )
             except jwt.PyJWTError as exc:
                 problems.append(f"invalid approval signature: {exc}")
+                continue
+            if str(claims.get("approval_id")) in self._spent:
+                problems.append(f"approval {claims.get('approval_id')} was already used")
                 continue
             if int(claims["exp"]) <= now:
                 problems.append(f"approval {claims.get('approval_id')} expired")

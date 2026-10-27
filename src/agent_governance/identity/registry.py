@@ -62,6 +62,9 @@ class AgentContract:
     quarantined: bool = False
     #: Autonomy to restore after a quarantine; ``None`` when not quarantined.
     pre_quarantine_autonomy: Autonomy | None = None
+    #: Agent IDs (without version) this agent may hand work off to. Empty means none: a
+    #: hand-off is an owner-approved property of the delegating agent's contract.
+    may_delegate_to: frozenset[str] = frozenset()
 
     @property
     def principal_id(self) -> str:
@@ -89,6 +92,7 @@ class AgentContract:
             "evals": list(self.evals),
             "retired_at": self.retired_at.isoformat() if self.retired_at else None,
             "quarantined": self.quarantined,
+            "may_delegate_to": sorted(self.may_delegate_to),
             "key_thumbprint": self.key_thumbprint,
         }
 

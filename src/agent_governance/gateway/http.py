@@ -262,8 +262,15 @@ def create_app(runtime: Runtime) -> FastAPI:
         try:
             return fn()
         except ApprovalError as exc:
-            status = 404 if "unknown approval task" in str(exc) else 409
-            raise HTTPException(status, str(exc)) from exc
+            message = str(exc)
+            status = (
+                404
+                if "unknown approval task" in message
+                else 403
+                if "may not decide" in message
+                else 409
+            )
+            raise HTTPException(status, message) from exc
 
     @app.get("/approvals")
     def list_approvals(authorization: str | None = Header(default=None)) -> dict[str, Any]:
@@ -282,8 +289,10 @@ def create_app(runtime: Runtime) -> FastAPI:
     def get_approval(
         task_id: str, authorization: str | None = Header(default=None)
     ) -> dict[str, Any]:
-        user(authorization)
+        caller = user(authorization)
         task = approval_call(lambda: runtime.approvals.task(task_id))
+        if not runtime.approvals.can_view(task, caller.id):
+            raise HTTPException(404, f"unknown approval task {task_id!r}")
         return dict(task.to_dict())
 
     @app.post("/approvals/{task_id}/approve")
@@ -331,7 +340,7 @@ def create_app(runtime: Runtime) -> FastAPI:
         day: date, authorization: str | None = Header(default=None)
     ) -> dict[str, Any]:
         user(authorization, AUDIT_ENTITLEMENT)
-        result = runtime.evidence.verify(settings.tenant, day)
+        result = runtime.evidence.verify(settings.tenant, day, runtime.keys.tsa.public_key())
         return {
             "day": result.day,
             "ok": result.ok,

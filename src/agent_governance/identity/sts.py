@@ -39,7 +39,12 @@ from agent_governance.evidence.record import EvidenceKind
 from agent_governance.evidence.store import EvidenceSink, EvidenceUnavailableError
 from agent_governance.identity.dpop import DpopError, DpopVerifier
 from agent_governance.identity.idp import IssuerKind, TrustedIssuer
-from agent_governance.identity.registry import AgentContract, AgentRegistry, UnknownAgentError
+from agent_governance.identity.registry import (
+    AgentContract,
+    AgentRegistry,
+    TriggerRegistration,
+    UnknownAgentError,
+)
 from agent_governance.identity.revocation import RevocationList
 from agent_governance.model import Inventory, Principal, PrincipalKind
 from agent_governance.policy.tools import ToolCatalog
@@ -220,14 +225,32 @@ class TokenService:
         agent = self._verify_actor(req.actor_token, req.token_endpoint)
         subject = self._verify_subject(req.subject_token)
         if subject.parent is not None:
-            # Hand-off: the current holder of the subject token proves possession.
+            # Hand-off: the current holder of the subject token proves possession, and the
+            # delegating agent's contract must name the receiving agent.
             expected_jkt = subject.parent.jkt
             if agent.principal_id in (subject.parent.subject, *subject.parent.delegation.chain):
                 raise TokenExchangeError(
                     "invalid_request", "an agent may not appear twice in a chain"
                 )
+            parent_contract = self.registry.get(subject.parent.subject)
+            if agent.agent_id not in parent_contract.may_delegate_to:
+                raise TokenExchangeError(
+                    "invalid_request",
+                    f"{parent_contract.principal_id} may not hand off to {agent.agent_id}",
+                )
         else:
             expected_jkt = agent.key_thumbprint
+        trigger = subject.trigger
+        if (
+            trigger is not None
+            and trigger.agents
+            and subject.parent is None
+            and agent.principal_id not in trigger.agents
+        ):
+            raise TokenExchangeError(
+                "invalid_request",
+                f"trigger {trigger.trigger_id} may not start {agent.principal_id}",
+            )
         try:
             self.dpop.verify(
                 req.dpop_proof, htm="POST", htu=req.token_endpoint, expected_jkt=expected_jkt
@@ -334,8 +357,12 @@ class TokenService:
     @dataclass(frozen=True, slots=True)
     class _Subject:
         delegation: Delegation
-        envelope: frozenset[str] | None
+        trigger: TriggerRegistration | None
         parent: AccessClaims | None
+
+        @property
+        def envelope(self) -> frozenset[str] | None:
+            return self.trigger.envelope if self.trigger is not None else None
 
     def _verify_subject(self, subject_token: str) -> TokenService._Subject:
         try:
@@ -349,11 +376,11 @@ class TokenService:
             except InvalidTokenError as exc:
                 raise TokenExchangeError("invalid_grant", f"subject token rejected: {exc}") from exc
             chain = (parent.subject, *parent.delegation.chain)
-            envelope = None
+            trigger = None
             if parent.delegation.root_kind is PrincipalKind.TRIGGER:
-                envelope = self._trigger_envelope(parent.delegation.root)
+                trigger = self._trigger(parent.delegation.root)
             return TokenService._Subject(
-                Delegation(chain, parent.delegation.root_kind), envelope, parent
+                Delegation(chain, parent.delegation.root_kind), trigger, parent
             )
 
         try:
@@ -377,10 +404,10 @@ class TokenService:
         if not subject.startswith("trigger:"):
             raise TokenExchangeError("invalid_grant", "event subject must name a trigger")
         return TokenService._Subject(
-            Delegation((subject,), PrincipalKind.TRIGGER), self._trigger_envelope(subject), None
+            Delegation((subject,), PrincipalKind.TRIGGER), self._trigger(subject), None
         )
 
-    def _trigger_envelope(self, trigger_principal: str) -> frozenset[str]:
+    def _trigger(self, trigger_principal: str) -> TriggerRegistration:
         trigger_id = trigger_principal.removeprefix("trigger:")
         try:
             trigger = self.registry.trigger(trigger_id)
@@ -390,7 +417,7 @@ class TokenService:
             ) from exc
         if not trigger.enabled:
             raise TokenExchangeError("invalid_grant", f"trigger {trigger_id!r} is disabled")
-        return trigger.envelope
+        return trigger
 
     def _scope(
         self, agent: AgentContract, req: ExchangeRequest, subject: TokenService._Subject

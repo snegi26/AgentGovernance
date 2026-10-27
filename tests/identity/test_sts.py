@@ -152,6 +152,30 @@ def test_handoff_nests_act_and_inherits_plan(ids: Ids) -> None:
     assert verified.delegation.depth == 2
 
 
+def test_handoff_target_must_be_named_in_delegating_contract(ids: Ids) -> None:
+    parent = ids.exchange("orchestrator", ids.user_token())
+    with pytest.raises(TokenExchangeError, match="may not hand off to ap-clerk"):
+        ids.exchange(
+            "ap-clerk", parent.access_token, audience="s4", proof_key=ids.keys["orchestrator"]
+        )
+
+
+def test_trigger_agent_allowlist_is_enforced(ids: Ids) -> None:
+    ids.registry.register_trigger(
+        TriggerRegistration(
+            "etd-alerts",
+            owner="user:mark@acme",
+            envelope=frozenset({"catalog.search_roles"}),
+            approved_by="user:mark@acme",
+            approved_at=ids.clock.now(),
+            agents=frozenset({"agent:orchestrator@1.3.0"}),
+        )
+    )
+    ids.exchange("orchestrator", ids.bus.issue_trigger_token("etd-alerts", "1", ISSUER))
+    with pytest.raises(TokenExchangeError, match="may not start"):
+        ids.exchange("access-request", ids.bus.issue_trigger_token("etd-alerts", "2", ISSUER))
+
+
 def test_handoff_requires_possession_of_parent_token(ids: Ids) -> None:
     parent = ids.exchange("orchestrator", ids.user_token())
     with pytest.raises(TokenExchangeError, match=r"cnf\.jkt"):

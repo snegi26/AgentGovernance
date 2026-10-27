@@ -4,7 +4,8 @@
 The store enforces append-only at two levels: the Python API has no update or delete, and
 database triggers abort any ``UPDATE`` or ``DELETE`` issued directly against the tables. The
 chain makes anything that bypasses both (editing the file) detectable by :meth:`verify`, and
-the anchored daily root makes rewriting a whole day detectable too.
+the anchored daily root, whose signed token :meth:`verify` re-checks, makes rewriting a whole day
+detectable too.
 
 Production deployments mirror records to object storage with WORM retention; that mirror
 consumes :meth:`EvidenceStore.records` and is outside this reference implementation.
@@ -20,8 +21,10 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Protocol
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
 from agent_governance.core import Clock, SystemClock, isoformat, new_id
-from agent_governance.evidence.anchor import TimestampAuthority, TimestampToken
+from agent_governance.evidence.anchor import TimestampAuthority, TimestampToken, verify_timestamp
 from agent_governance.evidence.record import EvidenceRecord, genesis_hash, link_hash
 
 
@@ -163,10 +166,13 @@ class EvidenceStore:
                     ),
                 )
                 self._db.execute("COMMIT")
-            except sqlite3.Error as exc:
+            except BaseException as exc:
+                # Never leave the connection inside a transaction, whatever went wrong.
                 if self._db.in_transaction:
                     self._db.execute("ROLLBACK")
-                raise EvidenceUnavailableError(str(exc)) from exc
+                if isinstance(exc, sqlite3.Error):
+                    raise EvidenceUnavailableError(str(exc)) from exc
+                raise
         return record
 
     def anchor_day(self, tenant: str, day: date | str, tsa: TimestampAuthority) -> AnchorRecord:
@@ -244,8 +250,15 @@ class EvidenceStore:
             for r in rows
         ]
 
-    def verify(self, tenant: str, day: date | str) -> ChainVerification:
-        """Recompute the chain for one tenant-day; report the first record that does not link."""
+    def verify(
+        self, tenant: str, day: date | str, tsa_key: Ed25519PublicKey | None = None
+    ) -> ChainVerification:
+        """Recompute the chain for one tenant-day; report the first record that does not link.
+
+        Anchors are checked too: the signed token must cover the stored root, and with
+        ``tsa_key`` (from your trust store) its signature must verify. Without the key, a forger
+        who can also mint TSA tokens is not detected; supply it in production.
+        """
         day_s = day if isinstance(day, str) else day.isoformat()
         with self._lock:
             rows = self._db.execute(
@@ -268,6 +281,13 @@ class EvidenceStore:
             prev = expected
         anchors = self.anchors(tenant, day_s)
         for anchor in anchors:
+            token_ok = anchor.token.digest == anchor.root and (
+                tsa_key is None or verify_timestamp(anchor.token, tsa_key)
+            )
+            if not token_ok:
+                return ChainVerification(
+                    tenant, day_s, False, len(rows), prev, None, "anchor token does not verify"
+                )
             if anchor.record_count > len(rows):
                 return ChainVerification(
                     tenant, day_s, False, len(rows), prev, None, "anchored records are missing"

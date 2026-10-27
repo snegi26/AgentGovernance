@@ -8,7 +8,6 @@ import json
 import os
 import threading
 import time
-from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
@@ -45,23 +44,18 @@ class FixedClock:
 def canonical_json(value: Any) -> bytes:
     """Serialise ``value`` deterministically (sorted keys, no whitespace, UTF-8).
 
-    This is the JSON Canonicalization Scheme (RFC 8785) restricted to the value types the
-    system emits: strings, integers, booleans, null, lists and objects. Floats are rejected
-    because their textual form is the one place where naive serialisers disagree with JCS.
+    Follows the JSON Canonicalization Scheme (RFC 8785) for strings, integers, booleans, null,
+    arrays and objects. Finite floats use Python's shortest round-trip form, which matches JCS
+    except for exponent notation on very large or small magnitudes; hashes are only ever
+    compared with hashes this package computed, so the form only has to be deterministic.
+    NaN and infinities are rejected.
     """
-    _reject_floats(value)
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-
-
-def _reject_floats(value: Any) -> None:
-    if isinstance(value, float):
-        raise TypeError("canonical_json does not accept floats; use integers or strings")
-    if isinstance(value, Mapping):
-        for item in value.values():
-            _reject_floats(item)
-    elif isinstance(value, list | tuple):
-        for item in value:
-            _reject_floats(item)
+    try:
+        return json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode()
+    except ValueError as exc:
+        raise TypeError(f"value is not canonical JSON: {exc}") from exc
 
 
 def sha256_hex(data: bytes) -> str:

@@ -4,6 +4,17 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Fixed
+
+- Approvals are single-use: they are spent when the call they authorize is allowed.
+- A rejection is final for its exact payload. Resubmitting no longer opens a fresh task.
+- Only holders of a required approver role, and never the delegator, can reject or view a task.
+- `request_access_self_or_reports` is enforced: requests may target only the delegator or their direct reports.
+- Hand-offs require the receiving agent in the delegating contract's `may_delegate_to`. A trigger's `agents` allowlist is enforced.
+- Evidence verification re-checks anchor tokens, not just the stored root.
+- A failed evidence append always rolls back its transaction. Float arguments no longer crash the gateway, and unexpected errors become recorded denies.
+- LINE_MANAGER approvals for triggered work resolve to the trigger's owner.
+
 ## [0.1.0] - 2026-10-27
 
 First release: the deterministic core and the enforcement gateway (spec Phases 0 and 1).

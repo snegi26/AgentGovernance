@@ -76,7 +76,8 @@ Session SoD (`sod/session.py`) uses the same rule set. It pre-filters executed s
 
 - **Agent registry.** Contract fields as in the spec: `agent_id`, `version`, `owner` (a human), `model_ref`, `allowed_tools`, `risk_tier`, `max_autonomy`, `eval_status` and `retired_at`, plus the agent's public JWK. Quarantine drops autonomy to `read`, and only the owner can restore.
 - **Token exchange.** On-behalf-of (`act = {sub: user}`) and triggered (`act = {sub: trigger:<id>}`). Autonomous exchange is refused. Scope = requested ∩ contract ∩ tools on the audience server ∩ autonomy (∩ trigger envelope). Hand-offs nest `act`, keep the `plan_id`, are capped at depth 3 and forbid loops.
-- **Triggers.** Registered with a fixed envelope that the named human owner approved. Disabling a trigger stops both new tokens and calls made with existing ones.
+- **Triggers.** Registered with a fixed envelope that the named human owner approved, optionally limited to a list of agents. Disabling a trigger stops both new tokens and calls made with existing ones.
+- **Hand-offs.** Allowed only to agent IDs listed in the delegating agent's `may_delegate_to`.
 
 ## Evidence
 
@@ -99,6 +100,8 @@ Each of these is deliberate and covered by tests.
 | `write_with_approval` autonomy | Every write by such an agent needs at least a line-manager approval | It makes the autonomy level mean what it says, even for tools whose base tier is none. |
 | Session relatedness | A step that lacks a join key is treated as related | When relatedness is unknown, assume the worst. |
 | Hand-off proof of possession | The holder of the subject token signs the exchange's DPoP proof, and the new token is bound to the receiving agent's key | A receiving agent cannot redeem a token it merely observed. |
+| Hand-off scope | The child's scope is its own contract ∩ the root delegator, **not** narrowed to the parent's scope. The parent's contract must name the child in `may_delegate_to`. | The spec's orchestrator holds read tools only but hands off to agents that write. Narrowing to the parent's scope would make that impossible, so delegation targets are owner-approved contract data instead. |
+| LINE_MANAGER for triggered work | The trigger's owner | A trigger has no manager. Its owner approved the envelope and is accountable for it. |
 
 ## Not in this release
 

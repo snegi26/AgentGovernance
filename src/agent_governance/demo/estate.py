@@ -88,6 +88,12 @@ AGENTS: tuple[tuple[str, str, frozenset[str], Autonomy, str], ...] = (
 )
 
 
+#: Owner-approved hand-off targets per delegating agent.
+HANDOFFS: dict[str, frozenset[str]] = {
+    "orchestrator": frozenset({"access-request", "certification"}),
+}
+
+
 @dataclass
 class DemoEstate:
     runtime: Runtime
@@ -151,6 +157,7 @@ def build_demo(
                 max_autonomy=autonomy,
                 public_jwk=ec_public_jwk(key),
                 eval_status=EvalStatus.SHADOW,
+                may_delegate_to=HANDOFFS.get(agent_id, frozenset()),
             )
         )
         estate.agents[agent_id] = AgentClient(runtime, contract.principal_id, key)

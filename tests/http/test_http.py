@@ -133,6 +133,16 @@ def test_tool_call_allow_and_approval_round_trip(client: TestClient, estate: Dem
         ).json()["tasks"]
         == []
     )
+    sam = {"Authorization": f"Bearer {estate.user_token('user:sam@acme')}"}
+    assert client.get(f"/approvals/{task_id}", headers=sam).status_code == 404  # not theirs to see
+    assert (
+        client.post(f"/approvals/{task_id}/reject", json={"reason": "x"}, headers=sam).status_code
+        == 403
+    )
+    priya = {"Authorization": f"Bearer {estate.user_token(PRIYA)}"}
+    assert (
+        client.get(f"/approvals/{task_id}", headers=priya).status_code == 200
+    )  # the requester can
     approval = client.post(
         f"/approvals/{task_id}/approve", json={"role": "line_manager"}, headers=mark
     ).json()["approval"]

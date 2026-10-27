@@ -22,7 +22,7 @@ from agent_governance.gateway.backends import CallContext, InMemoryBackend, Tool
 from agent_governance.gateway.gateway import Gateway
 from agent_governance.identity.dpop import DpopVerifier
 from agent_governance.identity.idp import TrustedIssuer
-from agent_governance.identity.registry import AgentContract, AgentRegistry
+from agent_governance.identity.registry import AgentContract, AgentRegistry, UnknownAgentError
 from agent_governance.identity.revocation import RevocationList
 from agent_governance.identity.sts import TokenService
 from agent_governance.model import Inventory
@@ -110,7 +110,7 @@ class Runtime:
             evidence=self.evidence,
             clock=self.clock,
         )
-        self.directory = ApproverDirectory(self.inventory, approver_grants)
+        self.directory = ApproverDirectory(self.inventory, approver_grants, self._trigger_owner)
         self.approvals = ApprovalService(
             tenant=tenant,
             signing_key=self.keys.approval_signing,
@@ -184,6 +184,12 @@ class Runtime:
             "agent": contract.principal_id,
             "decision_id": ctx.decision_id,
         }
+
+    def _trigger_owner(self, trigger_principal: str) -> str | None:
+        try:
+            return self.registry.trigger(trigger_principal.removeprefix("trigger:")).owner
+        except UnknownAgentError:
+            return None
 
     def _on_registry_change(self, event: str, payload: dict[str, Any]) -> None:
         self.evidence.append(

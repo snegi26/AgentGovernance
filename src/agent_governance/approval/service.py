@@ -88,7 +88,7 @@ class ApproverDirectory:
         self._grants.setdefault(role, set()).add(principal_id)
 
     def holds(self, principal_id: str, role: ApproverRole, *, delegator: str) -> bool:
-        if role is ApproverRole.LINE_MANAGER:
+        if role == ApproverRole.LINE_MANAGER:
             subject = self._inventory.find_principal(delegator)
             return subject is not None and subject.manager_id == principal_id
         return principal_id in self._grants.get(role, set())
@@ -187,8 +187,12 @@ class ApprovalService:
 
     # -- decisions ----------------------------------------------------------------------------
 
-    def approve(self, task_id: str, approver: str, role: ApproverRole) -> str:
+    def approve(self, task_id: str, approver: str, role: ApproverRole | str) -> str:
         """Record a named approval and return the signed approval token."""
+        try:
+            role = ApproverRole(role)
+        except ValueError:
+            raise ApprovalError(f"unknown approver role {role!r}") from None
         now = self.clock.now()
         with self._lock:
             task = self.task(task_id)

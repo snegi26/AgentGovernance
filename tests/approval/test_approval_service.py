@@ -169,6 +169,16 @@ def test_approvals_are_evidenced(service: ApprovalService) -> None:
     assert record.inputs_hash == "sha256:h"
 
 
+def test_roles_may_be_given_as_strings(service: ApprovalService) -> None:
+    task = _task(service, ApprovalTier.LOW_RISK_WRITE)
+    token = service.approve(task, "user:mark@acme", "line_manager")
+    assert service.verify(
+        [token], call_hash="sha256:h", tier=ApprovalTier.LOW_RISK_WRITE, delegator=PRIYA
+    ).valid
+    with pytest.raises(ApprovalError, match="unknown approver role"):
+        service.approve(_task(service, h="sha256:z"), "user:mark@acme", "ceo")
+
+
 def test_tier_none_needs_no_task_and_always_verifies(service: ApprovalService) -> None:
     with pytest.raises(ApprovalError):
         _task(service, ApprovalTier.NONE)

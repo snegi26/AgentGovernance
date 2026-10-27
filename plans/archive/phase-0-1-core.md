@@ -178,9 +178,30 @@ verified evidence packet; docs build from the repo.
 ## Progress
 | Phase | Status |
 | --- | --- |
-| A | pending |
-| B | pending |
-| C | pending |
-| D | pending |
-| E | pending |
-| F | pending |
+| A Skeleton and toolchain | done |
+| B SoD engine | done |
+| C Evidence store | done |
+| D Identity and delegation | done |
+| E Policy, approvals, gateway, HTTP | done |
+| F Connectors, demo, docs | done |
+
+## Execution record (2026-10-27)
+
+**Shipped:** everything in phases A–F. 197 tests, 95% branch coverage, ruff and mypy strict clean.
+`agent-governance demo` passes 20/20 checks from a clean wheel install.
+
+**Verification evidence**
+- All four spec abuse cases are tests (`tests/gateway/test_abuse_cases.py`) and demo steps.
+- Latency, in-process: gateway decision p95 4.7 ms and p99 5.3 ms (target 50/150 ms); session SoD
+  p95 about 40 ms on a 10k-step window (target 150 ms). The first session implementation measured
+  351 ms and was fixed by pre-filtering related steps before Datalog evaluation.
+- Mutation checks (tdd-skill `mutate-check.sh`) killed: trigger envelope intersection, hand-off
+  proof of possession, subject-token requirement, approver-role coercion.
+
+**Deviations from plan:** listed in `docs/architecture.md#deviations-from-the-spec`. Additions not
+in the plan: a `result_ref` citation check, approver-facing HTTP endpoints, a Markdown packet cover
+sheet, and `close()` on the stores (surfaced by running tests with warnings as errors).
+
+**Follow-ups:** Postgres/Iceberg adapters, an RFC 3161 client, live connectors, OpenTelemetry,
+moving the Starlette test client off httpx, and a shared DPoP replay cache for multi-replica
+deployments.

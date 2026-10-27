@@ -1,0 +1,10 @@
+Agent Governance
+Copyright 2026 Satish Negi and the Agent Governance contributors
+
+This product includes software developed by the Agent Governance contributors
+(https://github.com/snegi26/AgentGovernance), licensed under the Apache License 2.0.
+
+The starter segregation-of-duties rule library in src/agent_governance/rules/starter
+was authored for this project and is distributed under the same license. SAP, S/4HANA,
+Microsoft Entra ID, Okta and AWS are trademarks of their respective owners; this project
+is not affiliated with or endorsed by them.

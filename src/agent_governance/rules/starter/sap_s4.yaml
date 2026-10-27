@@ -1,0 +1,127 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Starter SoD library for SAP S/4HANA and Microsoft Entra ID.
+#
+# A starting point, not a certified rule set: authorization values follow common SAP
+# conventions (S_TCODE plus the main application object per transaction) and must be
+# reviewed against your own landscape, release and custom transactions before use.
+# Bump ruleset_version on every change; verdicts record both the version and a content digest.
+ruleset_version: starter-sap-2026.10
+description: Procure-to-pay, order-to-cash, record-to-report and basis risks; critical access.
+
+actions:
+  # --- Vendor master -----------------------------------------------------------------
+  - {system: S4, action: XK01, description: Create vendor (central), permissions: [
+      {auth_object: S_TCODE, field: TCD, value: XK01},
+      {auth_object: F_LFA1_APP, field: ACTVT, value: "01"}]}
+  - {system: S4, action: FK01, description: Create vendor (accounting), permissions: [
+      {auth_object: S_TCODE, field: TCD, value: FK01},
+      {auth_object: F_LFA1_APP, field: ACTVT, value: "01"}]}
+  - {system: S4, action: XK02, description: Change vendor (central), permissions: [
+      {auth_object: S_TCODE, field: TCD, value: XK02},
+      {auth_object: F_LFA1_APP, field: ACTVT, value: "02"}]}
+  # --- Accounts payable / payments -----------------------------------------------------
+  - {system: S4, action: FB60, description: Enter vendor invoice, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: FB60},
+      {auth_object: F_BKPF_BUK, field: ACTVT, value: "01"}]}
+  - {system: S4, action: MIRO, description: Logistics invoice verification, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: MIRO},
+      {auth_object: M_RECH_WRK, field: ACTVT, value: "01"}]}
+  - {system: S4, action: F110, description: Automatic payment run, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: F110},
+      {auth_object: F_REGU_BUK, field: FBTCH, value: "11"}]}
+  - {system: S4, action: F-53, description: Post outgoing payment, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: F-53},
+      {auth_object: F_BKPF_BUK, field: ACTVT, value: "01"}]}
+  # --- Purchasing ------------------------------------------------------------------------
+  - {system: S4, action: ME21N, description: Create purchase order, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: ME21N},
+      {auth_object: M_BEST_BSA, field: ACTVT, value: "01"}]}
+  - {system: S4, action: ME29N, description: Release purchase order, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: ME29N},
+      {auth_object: M_EINK_FRG, field: FRGCO, value: "*"}]}
+  - {system: S4, action: MIGO, description: Post goods receipt, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: MIGO},
+      {auth_object: M_MSEG_BWE, field: ACTVT, value: "01"}]}
+  # --- Order to cash ---------------------------------------------------------------------
+  - {system: S4, action: XD01, description: Create customer (central), permissions: [
+      {auth_object: S_TCODE, field: TCD, value: XD01},
+      {auth_object: F_KNA1_APP, field: ACTVT, value: "01"}]}
+  - {system: S4, action: FB75, description: Enter customer credit memo, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: FB75},
+      {auth_object: F_BKPF_BUK, field: ACTVT, value: "01"}]}
+  - {system: S4, action: F-28, description: Post incoming payment, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: F-28},
+      {auth_object: F_BKPF_BUK, field: ACTVT, value: "01"}]}
+  # --- Record to report ------------------------------------------------------------------
+  - {system: S4, action: FS00, description: Maintain G/L account master, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: FS00},
+      {auth_object: F_SKA1_BUK, field: ACTVT, value: "02"}]}
+  - {system: S4, action: FB50, description: Post G/L journal entry, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: FB50},
+      {auth_object: F_BKPF_BUK, field: ACTVT, value: "01"}]}
+  - {system: S4, action: OB52, description: Open and close posting periods, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: OB52},
+      {auth_object: S_TABU_DIS, field: ACTVT, value: "02"}]}
+  # --- Basis -------------------------------------------------------------------------------
+  - {system: S4, action: SU01, description: Maintain users, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: SU01},
+      {auth_object: S_USER_GRP, field: ACTVT, value: "02"}]}
+  - {system: S4, action: PFCG, description: Maintain roles, permissions: [
+      {auth_object: S_TCODE, field: TCD, value: PFCG},
+      {auth_object: S_USER_AGR, field: ACTVT, value: "02"}]}
+  - {system: S4, action: SE38_DEBUG_CHANGE, description: Debug with replace (change memory), permissions: [
+      {auth_object: S_DEVELOP, field: OBJTYPE, value: DEBUG},
+      {auth_object: S_DEVELOP, field: ACTVT, value: "02"}]}
+  # --- Microsoft Entra ID ----------------------------------------------------------------
+  - {system: ENTRA, action: GLOBAL_ADMIN, description: Global Administrator directory role, permissions: [
+      {auth_object: directoryRole, field: templateId, value: 62e90394-69f5-4237-9190-012177145e10}]}
+  - {system: ENTRA, action: PRIV_ROLE_ADMIN, description: Privileged Role Administrator, permissions: [
+      {auth_object: directoryRole, field: templateId, value: e8611ab8-c189-46e8-94e1-60213ab1f814}]}
+
+functions:
+  - {id: F_VENDOR_MAINT, description: Create or change vendor master data, actions: ["S4:XK01", "S4:FK01", "S4:XK02"]}
+  - {id: F_AP_INVOICE, description: Post vendor invoices, actions: ["S4:FB60", "S4:MIRO"]}
+  - {id: F_AP_PAYMENT, description: Execute vendor payments, actions: ["S4:F110", "S4:F-53"]}
+  - {id: F_PO_CREATE, description: Create purchase orders, actions: ["S4:ME21N"]}
+  - {id: F_PO_RELEASE, description: Release purchase orders, actions: ["S4:ME29N"]}
+  - {id: F_GOODS_RECEIPT, description: Post goods receipts, actions: ["S4:MIGO"]}
+  - {id: F_CUSTOMER_MAINT, description: Create customer master data, actions: ["S4:XD01"]}
+  - {id: F_AR_CREDIT, description: Issue customer credit memos, actions: ["S4:FB75"]}
+  - {id: F_AR_CASH, description: Post incoming payments, actions: ["S4:F-28"]}
+  - {id: F_GL_MASTER, description: Maintain G/L accounts, actions: ["S4:FS00"]}
+  - {id: F_GL_POST, description: Post G/L journal entries, actions: ["S4:FB50"]}
+  - {id: F_PERIOD_CTRL, description: Open and close posting periods, actions: ["S4:OB52"]}
+  - {id: F_USER_ADMIN, description: Administer users, actions: ["S4:SU01"]}
+  - {id: F_ROLE_ADMIN, description: Administer roles, actions: ["S4:PFCG"]}
+  - {id: F_DEBUG_CHANGE, description: Change program memory in the debugger, actions: ["S4:SE38_DEBUG_CHANGE"]}
+  - {id: F_ENTRA_GLOBAL_ADMIN, description: Entra Global Administrator, actions: ["ENTRA:GLOBAL_ADMIN"]}
+  - {id: F_ENTRA_PRIV_ROLE_ADMIN, description: Entra Privileged Role Administrator, actions: ["ENTRA:PRIV_ROLE_ADMIN"]}
+
+risks:
+  - {id: P2P-01, level: high, function_a: F_VENDOR_MAINT, function_b: F_AP_INVOICE, join_keys: [vendor_id],
+     description: Create a fictitious vendor and post invoices to it}
+  - {id: P2P-02, level: critical, function_a: F_VENDOR_MAINT, function_b: F_AP_PAYMENT, join_keys: [vendor_id],
+     description: Change vendor bank details and pay the vendor}
+  - {id: P2P-03, level: high, function_a: F_AP_INVOICE, function_b: F_AP_PAYMENT, join_keys: [vendor_id, company_code],
+     description: Post an invoice and release its payment}
+  - {id: P2P-04, level: medium, function_a: F_PO_CREATE, function_b: F_PO_RELEASE, join_keys: [purchase_order],
+     description: Create and approve own purchase orders}
+  - {id: P2P-05, level: medium, function_a: F_PO_CREATE, function_b: F_GOODS_RECEIPT, join_keys: [purchase_order],
+     description: Order goods and confirm their receipt}
+  - {id: O2C-01, level: high, function_a: F_CUSTOMER_MAINT, function_b: F_AR_CREDIT, join_keys: [customer_id],
+     description: Create a customer and issue credit memos to it}
+  - {id: O2C-02, level: medium, function_a: F_AR_CREDIT, function_b: F_AR_CASH, join_keys: [customer_id],
+     description: Issue credits and post the matching cash to hide a shortfall}
+  - {id: R2R-01, level: medium, function_a: F_GL_MASTER, function_b: F_GL_POST, join_keys: [company_code],
+     description: Create G/L accounts and post to them}
+  - {id: R2R-02, level: high, function_a: F_PERIOD_CTRL, function_b: F_GL_POST, join_keys: [company_code],
+     description: Reopen a closed period and post into it}
+  - {id: BAS-01, level: critical, function_a: F_USER_ADMIN, function_b: F_ROLE_ADMIN, join_keys: [],
+     description: "Create roles and assign them to users, including oneself"}
+  - {id: CRIT-01, level: critical, function_a: F_DEBUG_CHANGE,
+     description: Debug-and-replace bypasses every authorization check}
+  - {id: CRIT-02, level: critical, function_a: F_ENTRA_GLOBAL_ADMIN,
+     description: Unrestricted control of the Entra tenant}
+  - {id: CRIT-03, level: high, function_a: F_ENTRA_PRIV_ROLE_ADMIN,
+     description: "Can grant any directory role, including Global Administrator"}

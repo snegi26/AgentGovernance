@@ -428,7 +428,7 @@ class TokenService:
             tool_id
             for tool_id in requested & agent.allowed_tools
             if tool_id in server_tools
-            and server_tools[tool_id].action_class.autonomy_rank <= agent.max_autonomy.rank
+            and server_tools[tool_id].action_class.autonomy_rank <= agent.effective_autonomy.rank
         }
         if subject.envelope is not None:
             granted &= subject.envelope

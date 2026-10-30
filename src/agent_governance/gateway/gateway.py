@@ -13,6 +13,10 @@ Per call, in order (spec, "Per-call evaluation"):
 
 Failure behaviour is fail closed: if the policy engine, SoD engine or evidence store is
 unavailable, writes are denied and reads are served only from cache with ``stale = True``.
+
+Agents in ``shadow`` evaluation run every step for non-read calls, and the decision is recorded
+with the ``shadow`` flag, but the call is never forwarded: no approval task is opened, no
+approval is spent and no step is recorded for session SoD.
 """
 
 from __future__ import annotations
@@ -68,6 +72,9 @@ from agent_governance.sod.session import SessionChecker, SessionDecision, Sessio
 
 SELF_OR_REPORTS = "request_access_self_or_reports"
 
+#: Flag on decisions for shadow agents' calls, which are evaluated but never executed.
+SHADOW = "shadow"
+
 #: Argument names that assert a compliance verdict and must cite an engine ``result_ref``.
 VERDICT_FIELDS = ("compliant", "sod_clean", "sod_result", "verdict", "risk_score")
 
@@ -102,6 +109,8 @@ class GatewayResult:
     stale: bool = False
     flags: tuple[str, ...] = ()
     sod_result_ref: str | None = None
+    #: True when the verdict was evaluated for a shadow agent and the call was not executed.
+    shadow: bool = False
     details: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -117,6 +126,7 @@ class GatewayResult:
             "stale": self.stale,
             "flags": list(self.flags),
             "sod_result_ref": self.sod_result_ref,
+            "shadow": self.shadow,
             "details": dict(self.details),
         }
 
@@ -324,8 +334,11 @@ class Gateway:
             return self._dependency_failure(call, tool, base, exc)
 
         verdict = Verdict(decision.verdict.value)
+        shadow = agent.shadow and tool.action_class is not ActionClass.READ
+        if shadow:
+            flags = [*flags, SHADOW]
         task: ApprovalTask | None = None
-        if verdict is Verdict.REQUIRE_APPROVAL:
+        if verdict is Verdict.REQUIRE_APPROVAL and not shadow:
             task = self.approvals.open_task(
                 call_hash=call_hash,
                 tier=tier,
@@ -345,6 +358,8 @@ class Gateway:
         if task is not None and task.status is TaskStatus.REJECTED:
             verdict = Verdict.DENY
             reason = "an approver rejected this exact payload"
+        if shadow:
+            reason = f"shadow agent, not executed; evaluated as {verdict.value}: {reason}"
         try:
             record = self.evidence.append(
                 self.tenant,
@@ -370,6 +385,7 @@ class Gateway:
                     "jti": claims.jti,
                     "act_chain": list(claims.delegation.chain),
                     "reason": reason,
+                    "shadow": shadow,
                 },
             )
         except EvidenceUnavailableError as exc:
@@ -385,9 +401,10 @@ class Gateway:
             tier=tier,
             flags=tuple(flags),
             sod_result_ref=sod.result_ref,
+            shadow=shadow,
             details={"policy": decision.to_dict(), "sod": sod.summary},
         )
-        if verdict is not Verdict.ALLOW:
+        if verdict is not Verdict.ALLOW or shadow:
             return result
         if check.approval_ids:
             self.approvals.consume(call_hash, check.approval_ids)
@@ -545,7 +562,7 @@ class Gateway:
         if not tool.action_class.is_write:
             return ApprovalTier.NONE
         tiers = [tool.base_tier, sod.tier]
-        if agent.max_autonomy is Autonomy.WRITE_WITH_APPROVAL:
+        if agent.effective_autonomy is Autonomy.WRITE_WITH_APPROVAL:
             tiers.append(ApprovalTier.LOW_RISK_WRITE)
         if POSSIBLE_INJECTION in flags or PRIVILEGED_PROFILE in flags:
             tiers.append(ApprovalTier.HIGH_RISK_WRITE)

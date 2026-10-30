@@ -152,7 +152,7 @@ class PolicyEngine:
                 "uid": {"type": "Agent", "id": data.agent.principal_id},
                 "attrs": {
                     "allowed_tools": sorted(data.agent.allowed_tools),
-                    "max_autonomy": data.agent.max_autonomy.value,
+                    "max_autonomy": data.agent.effective_autonomy.value,
                     "quarantined": data.agent.quarantined,
                     "risk_tier": data.agent.risk_tier,
                 },

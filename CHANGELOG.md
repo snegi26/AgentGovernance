@@ -4,6 +4,15 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added
+
+- `eval_status` is enforced. `pending` and `failed` agents are read-only. `shadow` agents' non-read calls are evaluated and recorded with a `shadow` flag but never executed, open no approval task and do not count toward session SoD. `AgentRegistry.set_eval_status` changes the status with owner approval and records it.
+- The demo registers a shadow candidate, `ap-automation@1.1.0`, and checks that its write is not executed.
+
+### Changed
+
+- Demo agents are registered as `passed` instead of `shadow`.
+
 ### Fixed
 
 - Approvals are single-use: they are spent when the call they authorize is allowed.

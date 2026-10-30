@@ -32,6 +32,13 @@ class Autonomy(StrEnum):
 
 
 class EvalStatus(StrEnum):
+    """Where an agent version stands in evaluation; it caps what the agent may do.
+
+    ``pending`` and ``failed`` agents are read-only. ``shadow`` agents keep their contract
+    autonomy, but the gateway evaluates their non-read calls without executing them. Only
+    ``passed`` agents act with their full contract.
+    """
+
     PENDING = "pending"
     SHADOW = "shadow"
     PASSED = "passed"
@@ -78,6 +85,17 @@ class AgentContract:
     def active(self) -> bool:
         return self.retired_at is None
 
+    @property
+    def effective_autonomy(self) -> Autonomy:
+        """The autonomy the agent may use now: its contract, capped by its eval status."""
+        if self.eval_status in (EvalStatus.PENDING, EvalStatus.FAILED):
+            return Autonomy.READ
+        return self.max_autonomy
+
+    @property
+    def shadow(self) -> bool:
+        return self.eval_status is EvalStatus.SHADOW
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "agent_id": self.agent_id,
@@ -89,6 +107,7 @@ class AgentContract:
             "max_autonomy": self.max_autonomy.value,
             "risk_tier": self.risk_tier,
             "eval_status": self.eval_status.value,
+            "effective_autonomy": self.effective_autonomy.value,
             "evals": list(self.evals),
             "retired_at": self.retired_at.isoformat() if self.retired_at else None,
             "quarantined": self.quarantined,
@@ -191,6 +210,39 @@ class AgentRegistry:
             )
             self._agents[principal_id] = updated
         self._emit("agent.restored", {**updated.to_dict(), "approved_by": approved_by})
+        return updated
+
+    def set_eval_status(
+        self,
+        principal_id: str,
+        status: EvalStatus,
+        *,
+        approved_by: str,
+        eval_run: str | None = None,
+    ) -> AgentContract:
+        """Move an agent between eval states. Only the agent's owner may approve the change.
+
+        ``eval_run`` references the evidence of the eval run behind the change and is kept in
+        the contract's ``evals``.
+        """
+        with self._lock:
+            current = self.get(principal_id)
+            if approved_by != current.owner:
+                raise RegistryError("only the agent owner can change its eval status")
+            if not current.active:
+                raise RegistryError(f"{principal_id} is retired")
+            evals = (*current.evals, eval_run) if eval_run else current.evals
+            updated = replace(current, eval_status=status, evals=evals)
+            self._agents[principal_id] = updated
+        self._emit(
+            "agent.eval_status_changed",
+            {
+                **updated.to_dict(),
+                "previous_eval_status": current.eval_status.value,
+                "approved_by": approved_by,
+                "eval_run": eval_run,
+            },
+        )
         return updated
 
     def _update(self, principal_id: str, event: str, **changes: Any) -> AgentContract:

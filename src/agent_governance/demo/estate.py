@@ -88,6 +88,10 @@ AGENTS: tuple[tuple[str, str, frozenset[str], Autonomy, str], ...] = (
 )
 
 
+#: Candidate versions under shadow evaluation: (agent_id, version). Each reuses the contract of
+#: the live version above, and the gateway evaluates its non-read calls without executing them.
+SHADOW_CANDIDATES: tuple[tuple[str, str], ...] = (("ap-automation", "1.1.0"),)
+
 #: Owner-approved hand-off targets per delegating agent.
 HANDOFFS: dict[str, frozenset[str]] = {
     "orchestrator": frozenset({"access-request", "certification"}),
@@ -106,6 +110,7 @@ class DemoEstate:
         return self.runtime.clock
 
     def agent(self, agent_id: str) -> AgentClient:
+        """The client for a live agent by ID, or a shadow candidate by ``agent_id@version``."""
         return self.agents[agent_id]
 
     def user_token(self, user: str) -> str:
@@ -145,22 +150,29 @@ def build_demo(
         **runtime_kw,
     )
     estate = DemoEstate(runtime, idp, bus)
+    candidates = dict(SHADOW_CANDIDATES)
     for agent_id, version, tools, autonomy, owner in AGENTS:
-        key: ec.EllipticCurvePrivateKey = generate_ec_key()
-        contract = runtime.registry.register(
-            AgentContract(
-                agent_id=agent_id,
-                version=version,
-                owner=owner,
-                model_ref=MODEL_REF,
-                allowed_tools=tools,
-                max_autonomy=autonomy,
-                public_jwk=ec_public_jwk(key),
-                eval_status=EvalStatus.SHADOW,
-                may_delegate_to=HANDOFFS.get(agent_id, frozenset()),
+        releases = [(agent_id, version, EvalStatus.PASSED)]
+        if agent_id in candidates:
+            releases.append(
+                (f"{agent_id}@{candidates[agent_id]}", candidates[agent_id], EvalStatus.SHADOW)
             )
-        )
-        estate.agents[agent_id] = AgentClient(runtime, contract.principal_id, key)
+        for name, release, status in releases:
+            key: ec.EllipticCurvePrivateKey = generate_ec_key()
+            contract = runtime.registry.register(
+                AgentContract(
+                    agent_id=agent_id,
+                    version=release,
+                    owner=owner,
+                    model_ref=MODEL_REF,
+                    allowed_tools=tools,
+                    max_autonomy=autonomy,
+                    public_jwk=ec_public_jwk(key),
+                    eval_status=status,
+                    may_delegate_to=HANDOFFS.get(agent_id, frozenset()),
+                )
+            )
+            estate.agents[name] = AgentClient(runtime, contract.principal_id, key)
     runtime.registry.register_trigger(
         TriggerRegistration(
             trigger_id="etd-alerts",

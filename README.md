@@ -55,7 +55,7 @@ The demo wires a synthetic estate (fictional ACME: SAP S/4HANA and Entra ID expo
 agent-governance rules validate my-rules.yaml                       # version, digest, counts
 agent-governance sod static   --principal user:sam@acme --sap s4.json --entra graph.json
 agent-governance sod simulate --principal user:priya@acme --add Z_VENDOR_MAINT
-agent-governance evidence verify-packet out/AC-SOD-01.json --signer-key <b64> --tsa-key <b64>
+agent-governance evidence verify-packet out/AC-SOD-01.json --signer-key=<b64> --tsa-key=<b64>   # "=" form: base64url keys can start with "-"
 agent-governance serve        # dev-only HTTP gateway over the demo estate (needs the [server] extra)
 ```
 

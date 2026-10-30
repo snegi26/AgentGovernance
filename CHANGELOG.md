@@ -15,6 +15,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ### Fixed
 
+- The CLI test passed base64url keys as separate arguments, so a key starting with `-` was read as a flag (about one run in 30). The README now shows the `--signer-key=<key>` form.
 - Approvals are single-use: they are spent when the call they authorize is allowed.
 - A rejection is final for its exact payload. Resubmitting no longer opens a fresh task.
 - Only holders of a required approver role, and never the delegator, can reject or view a task.

@@ -227,9 +227,25 @@ They are security fixes and should not wait for the agents.
 ## Progress
 | Phase | Status |
 | --- | --- |
-| A Gaps the agents depend on | not started |
+| A Gaps the agents depend on | done |
 | B Agent boundary and model proxy | not started |
 | C Eval suites | not started |
 | D Orchestrator and specialists | not started |
 | E Shadow run | not started |
 | F Demo, docs, release | not started |
+
+## Execution record
+
+**Phase A (2026-10-30).** `eval_status` is enforced in the token service, the Cedar input and the
+gateway; shadow calls are evaluated and recorded but not forwarded, open no approval task, spend
+no approval and add no session step. `import-linter` enforces the verdict/agent boundary in CI and
+also covers `identity`. 224 tests and 21/21 demo checks pass. Each new guard was removed in turn
+and at least one test failed every time; the import contract caught a direct import, an indirect
+one through `core.py` and a model SDK.
+
+Deviations: the import check uses `import-linter` (as the revised plan says), which cannot list
+subpackages of external packages, so Google's model SDKs are not covered. Shadow candidates'
+writes are invisible to session SoD, including the candidate's own later steps, so a shadow run
+cannot yet reproduce a session-SoD deny caused by its own earlier writes; E.1 should track shadow
+steps in a separate session scope.
+

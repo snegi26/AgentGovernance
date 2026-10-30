@@ -46,6 +46,7 @@ Issues = "https://github.com/snegi26/AgentGovernance/issues"
 [dependency-groups]
 dev = [
   "httpx>=0.27",
+  "import-linter>=2.15",
   "mypy>=1.10",
   "pytest>=8",
   "pytest-cov>=5",
@@ -102,3 +103,34 @@ branch = true
 fail_under = 85
 show_missing = true
 skip_covered = true
+
+# CONTRIBUTING ground rule 1 as a check: verdict code never imports agent code or a model SDK,
+# directly or through another module. import-linter cannot name subpackages of external
+# packages, so Google's SDKs (google.genai) are not listed; review new google.* imports by hand.
+[tool.importlinter]
+root_package = "agent_governance"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Verdict code does not depend on agents or model SDKs"
+type = "forbidden"
+source_modules = [
+  "agent_governance.sod",
+  "agent_governance.policy",
+  "agent_governance.approval",
+  "agent_governance.gateway",
+  "agent_governance.evidence",
+  "agent_governance.identity",
+]
+forbidden_modules = [
+  "agent_governance.agents",
+  "anthropic",
+  "cohere",
+  "langchain",
+  "langchain_core",
+  "langgraph",
+  "litellm",
+  "mistralai",
+  "ollama",
+  "openai",
+]

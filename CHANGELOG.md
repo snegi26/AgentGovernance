@@ -7,6 +7,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ### Added
 
 - `eval_status` is enforced. `pending` and `failed` agents are read-only. `shadow` agents' non-read calls are evaluated and recorded with a `shadow` flag but never executed, open no approval task and do not count toward session SoD. `AgentRegistry.set_eval_status` changes the status with owner approval and records it.
+- An `import-linter` contract, run in CI, stops verdict packages (`sod`, `policy`, `approval`, `gateway`, `evidence`, `identity`) from importing agent code or model SDKs, directly or indirectly.
 - The demo registers a shadow candidate, `ap-automation@1.1.0`, and checks that its write is not executed.
 
 ### Changed

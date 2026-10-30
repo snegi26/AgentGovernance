@@ -250,7 +250,7 @@ They are security fixes and should not wait for the agents.
 | Phase | Status |
 | --- | --- |
 | A Gaps the agents depend on | done |
-| B Agent boundary and model proxy | not started |
+| B Agent boundary and model proxy | B.1 done |
 | C Eval suites | not started |
 | D Orchestrator and specialists | not started |
 | E Shadow run | not started |
@@ -270,4 +270,11 @@ subpackages of external packages, so Google's model SDKs are not covered. Shadow
 writes are invisible to session SoD, including the candidate's own later steps, so a shadow run
 cannot yet reproduce a session-SoD deny caused by its own earlier writes; E.1 should track shadow
 steps in a separate session scope.
+
+**B.1 (2026-10-30).** `RemoteAgentClient` in `agents/client.py` exchanges tokens and calls tools
+over HTTP with DPoP, using the token's audience as the tool server. `httpx` is the only runtime
+dependency, in the new `[agents]` extra. A second `import-linter` contract keeps agent code away
+from the runtime and every service module, and a test checks at runtime that importing the
+client loads none of them. Both caught a deliberately added `import agent_governance.runtime`.
+239 tests pass, 99% coverage on the client.
 

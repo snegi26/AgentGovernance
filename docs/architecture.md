@@ -43,7 +43,7 @@ flowchart LR
   REG --> GW
 ```
 
-The gateway is the only path from an agent to a target system. The orchestrator and agents (L2/L3, Phase 2+) are not part of this release. The gateway already enforces what the spec requires of them: tool allow-lists, autonomy ceilings, the quarantine, and rejecting outputs that assert a verdict without an engine `result_ref`.
+The gateway is the only path from an agent to a target system. Agent processes reach it over HTTP with `RemoteAgentClient` (`agents/client.py`), which holds the agent's own key and nothing else; `lint-imports` keeps agent code from importing the runtime or any module that holds a service key. The in-process `AgentClient` is for tests and the demo. The orchestrator and agents (L2/L3, Phase 2+) are not part of this release. The gateway already enforces what the spec requires of them: tool allow-lists, autonomy ceilings, the quarantine, and rejecting outputs that assert a verdict without an engine `result_ref`.
 
 ## The per-call pipeline
 

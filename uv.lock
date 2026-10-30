@@ -20,6 +20,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+agents = [
+    { name = "httpx" },
+]
 server = [
     { name = "uvicorn" },
 ]
@@ -40,12 +43,13 @@ requires-dist = [
     { name = "cedarpy", specifier = ">=4.1,<5" },
     { name = "cryptography", specifier = ">=42" },
     { name = "fastapi", specifier = ">=0.110" },
+    { name = "httpx", marker = "extra == 'agents'", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.6,<3" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8,<3" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.29" },
 ]
-provides-extras = ["server"]
+provides-extras = ["server", "agents"]
 
 [package.metadata.requires-dev]
 dev = [

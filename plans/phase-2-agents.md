@@ -93,8 +93,12 @@ Files to touch: `src/agent_governance/agents/{client,runtime}.py`,
 - Acceptance criteria:
   - The proxy is a gateway endpoint (`/model/{agent}`) authorised with the agent's DPoP-bound
     token; the model is selected from the contract's `model_ref`, never from the request.
-  - `ModelProvider` protocol, with `ScriptedProvider` (deterministic fake) for tests and one real
-    adapter behind an optional `[agents]` extra, so the core install stays model-free.
+  - The proxy speaks the OpenAI-compatible chat-completions API to agents, so a standard client
+    (LangGraph's `ChatOpenAI`) points at the proxy instead of a provider. The DPoP proof is added
+    per request by an `httpx` event hook on the client.
+  - `ModelProvider` protocol behind the proxy, with `ScriptedProvider` (deterministic fake) for
+    tests and an OpenAI-compatible adapter (covers hosted APIs and self-hosted vLLM/Ollama
+    endpoints) behind an optional `[agents]` extra, so the core install stays model-free.
   - Fail closed: a provider outage returns an error the agent must surface to a human queue; it
     never silently retries elsewhere.
   - Per-plan token and step budgets, enforced at the proxy.
@@ -111,15 +115,21 @@ Files to touch: `src/agent_governance/agents/{client,runtime}.py`,
 - Test seams: proxy endpoint
 - Blocked by: B.2
 
-#### Step B.4: Agent loop, prompt pinning and model-call evidence (Size: M)
+#### Step B.4: LangGraph agent loop, pinning and model-call evidence (Size: L)
 - Acceptance criteria:
-  - `AgentRuntime` drives propose → tool call → observe through `RemoteAgentClient` and the proxy,
-    with a step budget.
-  - Prompts are versioned files whose content digest is part of the agent contract, like
-    `ruleset_version`; a prompt or `model_ref` change is a new agent version and resets
-    `eval_status` to `pending`.
+  - Agents are LangGraph graphs in `agent_governance.agents`, installed with the `[agents]` extra.
+    Every tool node calls `RemoteAgentClient`; the model node calls the proxy. A step budget caps
+    graph iterations.
+  - LangGraph checkpoints hold prompts and tool results, so they are PII: the checkpointer stores
+    only redacted state, per plan, with the same retention as the model-call log below.
+  - Prompts and the graph definition are versioned files whose combined content digest is part of
+    the agent contract, like `ruleset_version`; a prompt, graph or `model_ref` change is a new
+    agent version and resets `eval_status` to `pending`.
   - The proxy writes a `model.call` evidence record: `model_ref`, prompt digest, prompt and output
     digests (not raw text), redaction counts and the `plan_id`.
+  - The proxy also writes the redacted prompt and output to a separate model-call log keyed by
+    the evidence record, with a configurable retention period after which entries are deleted.
+    The log is not hash-chained, and nothing in a verdict path reads it.
   - Model output that asserts a verdict reaches the gateway unchanged, and a test shows the
     `result_ref` check rejects it.
 - Verification command: `uv run pytest tests/agents/test_runtime.py`
@@ -211,9 +221,9 @@ They are security fixes and should not wait for the agents.
 | Agent process boundary | HTTP only; agents hold their own key and nothing else | `AgentClient` exposes `Runtime` and the approval key | proposed |
 | Where model controls live | Model proxy behind the gateway | Controls in agent code can be skipped by the agent they constrain | proposed |
 | Eval order | Suites before agents | Expected outcomes come from the spec and the engine, not from what a built agent happens to do | proposed |
-| Agent framework | Thin in-house loop over the proxy | Keeps the loop auditable and deterministic under test; LangGraph can wrap it later without changing the boundary | open — needed before B.4 |
-| Model provider | Protocol + one adapter in an optional extra | Vendor-neutral core; CI never calls a model | open — which provider first, needed before B.2 |
-| Model-call evidence | Digests only, not raw prompts | Evidence must not become a PII store; raw text, if kept, goes to a separate retention-limited log | open |
+| Agent framework | LangGraph, in the `[agents]` extra | Graph orchestration and checkpointing out of the box; the HTTP boundary and model proxy keep it outside the trusted core | decided 2026-10-30 |
+| Model provider | OpenAI-compatible adapter first, behind the provider protocol | One adapter covers hosted APIs and self-hosted servers; CI never calls a model | decided 2026-10-30 |
+| Model-call evidence | Digests in the hash chain, plus a separate retention-limited log of redacted text | Evidence must not become a PII store, and investigations still need the redacted text | decided 2026-10-30 |
 | Self-hosted model option | Supported through the same provider protocol and egress allow-list | Open question carried from the spec | open |
 
 ## Always / Never
@@ -223,6 +233,18 @@ They are security fixes and should not wait for the agents.
 - Never: model output as a verdict; agent code in a process that holds service keys; agent code
   imported by verdict packages; real model calls in CI; shadow calls that open approvals or
   count as executed steps; agents writing to target systems before they pass evals.
+
+## Phase B pickup
+
+- Decisions needed before B are made (see the decision log). Still open: retention period for the
+  model-call log and checkpoints, and the Phase 2/3 split against the spec.
+- B.1 has no dependency on them and goes first.
+- New dependencies, all in the `[agents]` extra and none importable from verdict code
+  (`lint-imports` already forbids `openai`, `langchain`, `langchain_core` and `langgraph` there):
+  `langgraph`, `langchain-openai`, `openai`. The proxy's provider adapter uses `httpx` directly so
+  the core install stays SDK-free.
+- Before B.4, check the current LangGraph checkpointer API and the latest stable versions; pin
+  exact versions in `uv.lock`.
 
 ## Progress
 | Phase | Status |

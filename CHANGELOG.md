@@ -4,8 +4,20 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added
+
+- `eval_status` is enforced. `pending` and `failed` agents are read-only. `shadow` agents' non-read calls are evaluated and recorded with a `shadow` flag but never executed, open no approval task and do not count toward session SoD. `AgentRegistry.set_eval_status` changes the status with owner approval and records it.
+- An `import-linter` contract, run in CI, stops verdict packages (`sod`, `policy`, `approval`, `gateway`, `evidence`, `identity`) from importing agent code or model SDKs, directly or indirectly.
+- `agent_governance.agents.client.RemoteAgentClient` (the new `[agents]` extra): an agent's HTTP route to the gateway for token exchange, `tools/list` and `tools/call`, built from the gateway's public URL and the agent's own key only. A second `import-linter` contract stops agent code from importing the runtime, gateway, approval, evidence, SoD, policy or token-service modules.
+- The demo registers a shadow candidate, `ap-automation@1.1.0`, and checks that its write is not executed.
+
+### Changed
+
+- Demo agents are registered as `passed` instead of `shadow`.
+
 ### Fixed
 
+- The CLI test passed base64url keys as separate arguments, so a key starting with `-` was read as a flag (about one run in 30). The README now shows the `--signer-key=<key>` form.
 - Approvals are single-use: they are spent when the call they authorize is allowed.
 - A rejection is final for its exact payload. Resubmitting no longer opens a fresh task.
 - Only holders of a required approver role, and never the delegator, can reject or view a task.

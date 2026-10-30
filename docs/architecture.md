@@ -43,7 +43,7 @@ flowchart LR
   REG --> GW
 ```
 
-The gateway is the only path from an agent to a target system. The orchestrator and agents (L2/L3, Phase 2+) are not part of this release. The gateway already enforces what the spec requires of them: tool allow-lists, autonomy ceilings, the quarantine, and rejecting outputs that assert a verdict without an engine `result_ref`.
+The gateway is the only path from an agent to a target system. Agent processes reach it over HTTP with `RemoteAgentClient` (`agents/client.py`), which holds the agent's own key and nothing else; `lint-imports` keeps agent code from importing the runtime or any module that holds a service key. The in-process `AgentClient` is for tests and the demo. The orchestrator and agents (L2/L3, Phase 2+) are not part of this release. The gateway already enforces what the spec requires of them: tool allow-lists, autonomy ceilings, the quarantine, and rejecting outputs that assert a verdict without an engine `result_ref`.
 
 ## The per-call pipeline
 
@@ -75,6 +75,7 @@ Session SoD (`sod/session.py`) uses the same rule set. It pre-filters executed s
 ## Identity
 
 - **Agent registry.** Contract fields as in the spec: `agent_id`, `version`, `owner` (a human), `model_ref`, `allowed_tools`, `risk_tier`, `max_autonomy`, `eval_status` and `retired_at`, plus the agent's public JWK. Quarantine drops autonomy to `read`, and only the owner can restore.
+- **Eval status.** It caps what an agent version may do, both when tokens are issued and on every call, so a status change applies to tokens already out. `pending` and `failed` agents are read-only. A `shadow` agent keeps its contract autonomy, but its non-read calls are evaluated and recorded with the `shadow` flag, and never executed: no approval task is opened, no approval is spent and no step counts toward session SoD. Only the owner can change the status, and the change is recorded as evidence.
 - **Token exchange.** On-behalf-of (`act = {sub: user}`) and triggered (`act = {sub: trigger:<id>}`). Autonomous exchange is refused. Scope = requested ∩ contract ∩ tools on the audience server ∩ autonomy (∩ trigger envelope). Hand-offs nest `act`, keep the `plan_id`, are capped at depth 3 and forbid loops.
 - **Triggers.** Registered with a fixed envelope that the named human owner approved, optionally limited to a list of agents. Disabling a trigger stops both new tokens and calls made with existing ones.
 - **Hand-offs.** Allowed only to agent IDs listed in the delegating agent's `may_delegate_to`.

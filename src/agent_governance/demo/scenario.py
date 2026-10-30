@@ -219,8 +219,23 @@ def _abuse_cases(run: _Run) -> None:
     run.check("Token replayed from another host", "deny", stolen.verdict.value, stolen.reason)
 
 
+def _shadow(run: _Run) -> None:
+    run.section("5. Evaluation gate: a shadow version is evaluated, never executed")
+    estate = run.estate
+    candidate = estate.agent("ap-automation@1.1.0")
+    token = candidate.exchange(estate.user_token(PRIYA), "s4", plan_id="plan-shadow")
+    result = candidate.call(token, "s4.vendor_create", {"vendor_id": "V-90030"})
+    executed = result.result is not None or result.approval_task_id is not None
+    run.check(
+        "Shadow ap-automation@1.1.0 creates vendor V-90030",
+        "require_approval, not executed",
+        f"{result.verdict.value}, {'executed' if executed else 'not executed'}",
+        "recorded with the shadow flag; no approval task, no session step",
+    )
+
+
 def _triggered(run: _Run) -> None:
-    run.section("5. Event-triggered agent with an owner-approved envelope")
+    run.section("6. Event-triggered agent with an owner-approved envelope")
     estate = run.estate
     monitor = estate.agent("anomaly-monitor")
     token = monitor.exchange(
@@ -253,7 +268,7 @@ def _triggered(run: _Run) -> None:
 
 
 def _evidence(run: _Run, packet_dir: Path | None) -> None:
-    run.section("6. Evidence: hash chain, anchor, auditor packet")
+    run.section("7. Evidence: hash chain, anchor, auditor packet")
     runtime = run.estate.runtime
     days = runtime.evidence.days(runtime.settings.tenant)
     chains_ok = all(runtime.evidence.verify(runtime.settings.tenant, d).ok for d in days)
@@ -303,5 +318,6 @@ _SECTIONS: tuple[Callable[[_Run], None], ...] = (
     _identity,
     _access_request,
     _abuse_cases,
+    _shadow,
     _triggered,
 )

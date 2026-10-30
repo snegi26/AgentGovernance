@@ -83,10 +83,10 @@ def test_verify_packet_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     signer = ed25519_public_b64(runtime.keys.packet_signing)
     tsa = ed25519_public_b64(runtime.keys.tsa)
     assert (
-        main(["evidence", "verify-packet", str(path), "--signer-key", signer, "--tsa-key", tsa])
+        main(["evidence", "verify-packet", str(path), f"--signer-key={signer}", f"--tsa-key={tsa}"])
         == 0
     )
     assert "packet OK" in capsys.readouterr().out
     other = ed25519_public_b64(runtime.keys.approval_signing)
-    assert main(["evidence", "verify-packet", str(path), "--signer-key", other]) == 1
+    assert main(["evidence", "verify-packet", str(path), f"--signer-key={other}"]) == 1
     runtime.close()

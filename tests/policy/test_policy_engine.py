@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from agent_governance.crypto import ec_public_jwk, generate_ec_key
-from agent_governance.identity.registry import AgentContract, Autonomy
+from agent_governance.identity.registry import AgentContract, Autonomy, EvalStatus
 from agent_governance.policy.engine import (
     DelegatorContext,
     PolicyEngine,
@@ -30,6 +30,7 @@ AGENT = AgentContract(
     ),
     max_autonomy=Autonomy.WRITE_WITH_APPROVAL,
     public_jwk=ec_public_jwk(generate_ec_key()),
+    eval_status=EvalStatus.PASSED,
 )
 HUMAN = DelegatorContext(
     "human",

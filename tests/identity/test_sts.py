@@ -8,7 +8,7 @@ import pytest
 
 from agent_governance.crypto import generate_ec_key
 from agent_governance.identity.idp import LocalIdentityProvider
-from agent_governance.identity.registry import RegistryError, TriggerRegistration
+from agent_governance.identity.registry import EvalStatus, RegistryError, TriggerRegistration
 from agent_governance.identity.sts import ExchangeRequest, InvalidTokenError, TokenExchangeError
 from agent_governance.model import PrincipalKind
 from tests.identity.conftest import ISSUER, TOKEN_URL, Ids
@@ -293,3 +293,11 @@ def test_jwks_exposes_public_key_only(ids: Ids) -> None:
     [key] = ids.sts.jwks()["keys"]
     assert "d" not in key
     assert key["alg"] == "ES256"
+
+
+def test_unevaluated_agent_gets_read_tools_only(ids: Ids) -> None:
+    ids.registry.set_eval_status(
+        "agent:access-request@1.3.0", EvalStatus.PENDING, approved_by="user:mark@acme"
+    )
+    issued = ids.exchange("access-request", ids.user_token())
+    assert set(issued.scope) == {"catalog.search_roles", "sod.simulate"}

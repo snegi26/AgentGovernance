@@ -16,7 +16,7 @@ from agent_governance.identity.idp import (
     LocalIdentityProvider,
     make_client_assertion,
 )
-from agent_governance.identity.registry import AgentContract, AgentRegistry, Autonomy
+from agent_governance.identity.registry import AgentContract, AgentRegistry, Autonomy, EvalStatus
 from agent_governance.identity.revocation import RevocationList
 from agent_governance.identity.sts import ExchangeRequest, IssuedToken, TokenService
 from agent_governance.model import Inventory
@@ -94,6 +94,7 @@ def build_ids(clock: FixedClock, inventory: Inventory) -> Ids:
                 allowed_tools=frozenset(tools),
                 max_autonomy=autonomy,
                 public_jwk=ec_public_jwk(keys[name]),
+                eval_status=EvalStatus.PASSED,
                 may_delegate_to=handoffs.get(name, frozenset()),
             )
         )

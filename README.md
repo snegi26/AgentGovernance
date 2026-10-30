@@ -35,7 +35,7 @@ uv sync                      # or: python -m venv .venv && pip install -e .
 uv run agent-governance demo --packet-dir out/
 ```
 
-The demo wires a synthetic estate (fictional ACME: SAP S/4HANA and Entra ID exports loaded through the real connectors) and checks 20 expected-versus-actual verdicts. It exits non-zero if any guarantee fails:
+The demo wires a synthetic estate (fictional ACME: SAP S/4HANA and Entra ID exports loaded through the real connectors) and checks 21 expected-versus-actual verdicts. It exits non-zero if any guarantee fails:
 
 ```
 4. Abuse cases the spec requires to be denied
@@ -46,7 +46,7 @@ The demo wires a synthetic estate (fictional ACME: SAP S/4HANA and Entra ID expo
   [PASS] Token replayed from another host
          expected deny, got deny - DPoP check failed: DPoP key does not match the token's cnf.jkt
 ...
-20/20 checks passed
+21/21 checks passed
 ```
 
 ### Other commands
@@ -55,7 +55,7 @@ The demo wires a synthetic estate (fictional ACME: SAP S/4HANA and Entra ID expo
 agent-governance rules validate my-rules.yaml                       # version, digest, counts
 agent-governance sod static   --principal user:sam@acme --sap s4.json --entra graph.json
 agent-governance sod simulate --principal user:priya@acme --add Z_VENDOR_MAINT
-agent-governance evidence verify-packet out/AC-SOD-01.json --signer-key <b64> --tsa-key <b64>
+agent-governance evidence verify-packet out/AC-SOD-01.json --signer-key=<b64> --tsa-key=<b64>   # "=" form: base64url keys can start with "-"
 agent-governance serve        # dev-only HTTP gateway over the demo estate (needs the [server] extra)
 ```
 
